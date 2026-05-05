@@ -1,0 +1,5 @@
+config.env
+venv/
+.venv/
+env/   
+temp
