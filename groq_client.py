@@ -12,18 +12,38 @@ SYSTEM_PROMPT = """You are an expert SQL developer. Your ONLY job is to convert 
 
 Rules:
 1. Output ONLY the SQL query — no explanations, no markdown fences, no commentary.
-2. Use standard SQL syntax (ANSI SQL) unless the user specifies a dialect (MySQL, PostgreSQL, SQLite, etc.).
-3. Use clear formatting: uppercase keywords (SELECT, FROM, WHERE), proper indentation.
-4. If a schema is provided, use the exact table/column names from it.
-5. If the request is ambiguous, make reasonable assumptions and add a brief comment above the SQL.
-6. For complex queries, add inline SQL comments (-- comment) to explain key parts.
-7. Never refuse a SQL generation request — always produce the best possible query.
+2. Use standard SQL syntax (ANSI SQL) unless specified otherwise.
+3. Use clear formatting: uppercase keywords, proper indentation.
+4. If a schema is provided, STRICTLY use the given table and column names.
+5. If ambiguous, make reasonable assumptions and add a short SQL comment.
+6. Add inline SQL comments (-- comment) only if necessary.
+7. Never refuse — always generate the best possible SQL.
+
+Multi-table rules:
+8. If multiple tables exist, infer joins using common column names (e.g., customer_id, order_id).
+9. Prefer INNER JOIN unless specified otherwise.
+10. ALWAYS qualify columns with table aliases when multiple tables are used.
+11. Use short aliases like c, o, p for readability.
+
+Data type handling:
+12. If a column name suggests date/time (e.g., contains 'date'), treat it as DATE.
+13. CAST date columns when using functions like AVG, DATE_PART, etc.
+14. Avoid applying aggregate functions directly on VARCHAR columns.
+
+Best practices:
+15. Use GROUP BY when aggregation is present.
+16. Use ORDER BY when results imply ranking or sorting.
+17. Use LIMIT when user asks for top/bottom results.
 
 Output format:
--- Optional: brief assumption note (only if truly ambiguous)
+-- Optional comment (only if needed)
 SELECT ...
 FROM ...
-WHERE ...;
+JOIN ...
+WHERE ...
+GROUP BY ...
+ORDER BY ...
+LIMIT ...;
 """
 
 
@@ -31,9 +51,7 @@ class GroqSQLGenerator:
     def __init__(self):
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-            raise ValueError(
-                "❌ GROQ_API_KEY not found. Please set it in your .env file."
-            )
+            raise ValueError("❌ GROQ_API_KEY not found. Please set it in your .env file.")
 
         self.client = Groq(api_key=api_key)
         self.model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -41,7 +59,7 @@ class GroqSQLGenerator:
         self.history = []
 
     def set_schema(self, schema: str):
-        """Set the database schema for context-aware generation."""
+        """Set schema for context-aware SQL generation."""
         self.schema = schema.strip()
 
     def clear(self):
@@ -50,25 +68,29 @@ class GroqSQLGenerator:
         self.schema = None
 
     def get_history(self) -> list:
-        """Return the query history."""
+        """Return query history."""
         return self.history
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt, injecting schema if available."""
+        """Inject schema into system prompt."""
         if self.schema:
-            return (
-                SYSTEM_PROMPT
-                + f"\n\nDatabase Schema:\n{self.schema}"
-            )
+            return SYSTEM_PROMPT + f"\n\nDatabase Schema:\n{self.schema}"
         return SYSTEM_PROMPT
 
-    def generate_sql(self, natural_language: str) -> dict:
+    def _clean_sql_output(self, sql: str) -> str:
         """
-        Convert natural language to SQL.
+        Clean unwanted formatting from model output.
+        (Sometimes LLMs add ```sql ``` blocks)
+        """
+        sql = sql.strip()
 
-        Returns:
-            dict with keys: 'sql', 'input', 'success', 'error'
-        """
+        if sql.startswith("```"):
+            sql = sql.replace("```sql", "").replace("```", "").strip()
+
+        return sql
+
+    def generate_sql(self, natural_language: str) -> dict:
+        """Generate SQL from natural language."""
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -76,13 +98,14 @@ class GroqSQLGenerator:
                     {"role": "system", "content": self._build_system_prompt()},
                     {"role": "user", "content": natural_language},
                 ],
-                temperature=0.1,       # Low temp for deterministic SQL
+                temperature=0.1,
                 max_tokens=1024,
             )
 
-            sql_output = response.choices[0].message.content.strip()
+            raw_output = response.choices[0].message.content
+            sql_output = self._clean_sql_output(raw_output)
 
-            # Save to history
+            # Save history
             self.history.append({
                 "input": natural_language,
                 "sql": sql_output,

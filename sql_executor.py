@@ -1,8 +1,9 @@
 import duckdb
 
-def execute_query(df, sql):
+def execute_query(tables: dict, sql: str):
     con = duckdb.connect()
-    con.register("uploaded_table", df)
 
-    result = con.execute(sql).fetchdf()
-    return result
+    for name, df in tables.items():
+        con.register(name, df)
+
+    return con.execute(sql).fetchdf()
