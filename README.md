@@ -114,24 +114,37 @@ App will open at:
 
 Edit `.env` to change model:
 
-  Model                     Speed     Use Case
-  ------------------------- --------- -----------------
-  llama-3.3-70b-versatile   Fast      Complex queries
-  llama-3.1-8b-instant      Fastest   Simple queries
-  mixtral-8x7b-32768        Fast      Large schema
+  Model                         Speed         Use Case
+  -------------------------     ---------     -----------------
+  
+  llama-3.3-70b-versatile       Fast          Complex queries
+  
+  llama-3.1-8b-instant          Fastest       Simple queries
+  
+  mixtral-8x7b-32768            Fast          Large schema
 
 ------------------------------------------------------------------------
 
 sql_generator/
+
 ├── app.py                 # Streamlit UI (main app)
+
 ├── main.py                # Old CLI version (optional)
+
 ├── groq_client.py         # Groq API integration
+
 ├── schema_from_csv.py     # CSV → schema inference
+
 ├── sql_executor.py        # SQL execution engine
+
 ├── sql_fixer.py           # Auto SQL correction
+
 ├── utils.py               # Helper functions
+
 ├── requirements.txt
+
 ├── .env.example
+
 └── README.md
 
 
