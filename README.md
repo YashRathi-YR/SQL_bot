@@ -22,7 +22,7 @@ execute them instantly on your data.
 
 ## 🖼️ Demo
 
-![App UI](ui.png)
+![App UI](UI.png)
 ------------------------------------------------------------------------
 
 ## 🛠️ Setup
